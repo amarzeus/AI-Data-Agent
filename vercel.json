@@ -17,5 +17,6 @@
   ],
   "outputDirectory": "frontend/build",
   "installCommand": "cd frontend && npm install",
-  "buildCommand": "cd frontend && npm run build"
+  "buildCommand": "cd frontend && npm run build",
+  "framework": "create-react-app"
 }
