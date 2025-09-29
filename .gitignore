@@ -23,6 +23,12 @@ node_modules/
 .idea/
 *.swp
 *.swo
+.bmad-core
+.cursor
+.kilocodemodes
+.railwayignore
+.vercelignore
+
 
 # OS
 .DS_Store
