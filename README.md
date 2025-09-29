@@ -42,7 +42,7 @@ A modern, AI-powered platform that transforms how users interact with Excel data
 ### ⚡ One-Command Setup (Recommended)
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/amarzeus/AI-Data-Agent.git
 cd ai-data-agent
 ./setup.sh  # Automated setup and configuration
 ```
