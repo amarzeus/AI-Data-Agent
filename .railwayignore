@@ -12,14 +12,6 @@ node_modules/
 build/
 dist/
 
-# Python virtual environment
-venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-
 # IDE and editor files
 .vscode/
 .idea/
@@ -68,3 +60,6 @@ uploads/
 # Logs
 *.log
 logs/
+
+# Keep the Procfile for Railway
+!Procfile
