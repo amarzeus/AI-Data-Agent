@@ -52,6 +52,7 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
     currentUser,
     activeSession,
     setActiveSession,
+    setChatMessages,
   } = useDataContext();
 
   const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
