@@ -61,4 +61,5 @@ uploads/
 *.log
 logs/
 
-# Railway auto-detects Python projects
+# Railway configuration
+!nixpacks.toml
