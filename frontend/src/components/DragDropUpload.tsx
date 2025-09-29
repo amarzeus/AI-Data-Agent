@@ -16,7 +16,6 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AttachmentIcon from '@mui/icons-material/Attachment';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ReplayIcon from '@mui/icons-material/Replay';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { toast } from 'react-hot-toast';
