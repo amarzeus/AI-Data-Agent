@@ -16,9 +16,11 @@ import {
   Tooltip,
   Chip,
   Stack,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   BarChart,
@@ -43,6 +45,9 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
+  FunnelChart,
+  Funnel,
+  LabelList,
 } from 'recharts';
 import {
   Fullscreen,
@@ -72,6 +77,7 @@ const QueryResultsViz: React.FC<QueryResultsVizProps> = ({
   disclaimer,
 }) => {
   const [fullscreenChart, setFullscreenChart] = useState<VizConfig | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
 
   const handleFullscreen = (config: VizConfig) => {
     setFullscreenChart(config);
@@ -86,8 +92,18 @@ const QueryResultsViz: React.FC<QueryResultsVizProps> = ({
     console.log('Export chart:', config.title);
   };
 
+  const toggleCardExpansion = (index: number) => {
+    const newExpanded = new Set(expandedCards);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedCards(newExpanded);
+  };
+
   const renderChart = (config: VizConfig) => {
-    const { type, data, xAxis, yAxis } = config;
+    const { type, data, title, xAxis, yAxis } = config;
 
     if (!data || data.length === 0) {
       return (

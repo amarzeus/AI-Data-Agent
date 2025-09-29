@@ -14,6 +14,7 @@ import {
   ToggleButtonGroup,
   Button,
   ButtonGroup,
+  Chip,
   IconButton,
   Dialog,
   DialogTitle,
@@ -30,7 +31,10 @@ import {
   ScatterPlot as ScatterIcon,
   TrendingUp as TrendIcon,
   Assessment as HistogramIcon,
+  TableChart as PivotIcon,
+  Download as ExportIcon,
   Settings as SettingsIcon,
+  Fullscreen as FullscreenIcon,
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -50,6 +54,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ComposedChart,
+  ReferenceLine,
 } from 'recharts';
 
 interface DataVisualizationProps {
@@ -60,6 +66,7 @@ interface DataVisualizationProps {
 }
 
 type ChartType = 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'histogram';
+type ViewMode = 'chart' | 'pivot' | 'table';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -70,6 +77,7 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({
   onExport,
 }: DataVisualizationProps) => {
   const [chartType, setChartType] = useState<ChartType>('bar');
+  const [viewMode, setViewMode] = useState<ViewMode>('chart');
   const [xColumn, setXColumn] = useState<string>('');
   const [yColumn, setYColumn] = useState<string>('');
   const [categoryColumn, setCategoryColumn] = useState<string>('');
@@ -236,6 +244,13 @@ const DataVisualization: React.FC<DataVisualizationProps> = ({
         </Alert>
       );
     }
+
+    const commonProps = {
+      width: '100%',
+      height: 400,
+      data: chartData,
+      margin: { top: 5, right: 30, left: 20, bottom: 5 },
+    };
 
     switch (chartType) {
       case 'bar':
