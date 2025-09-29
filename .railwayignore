@@ -38,7 +38,6 @@ pytest.ini
 
 # Development scripts
 setup.sh
-start.sh
 deploy.sh
 test_*.py
 
