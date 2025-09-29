@@ -60,7 +60,6 @@ interface DataVisualizationProps {
 }
 
 type ChartType = 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'histogram';
-type ViewMode = 'chart' | 'pivot' | 'table';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 

@@ -72,7 +72,6 @@ const QueryResultsViz: React.FC<QueryResultsVizProps> = ({
   disclaimer,
 }) => {
   const [fullscreenChart, setFullscreenChart] = useState<VizConfig | null>(null);
-  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
 
   const handleFullscreen = (config: VizConfig) => {
     setFullscreenChart(config);

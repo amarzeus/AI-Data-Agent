@@ -151,8 +151,6 @@ const DataPreview: React.FC<DataPreviewProps> = ({ fileId }) => {
     );
   }
 
-  const { processed_data } = fileData;
-
   // Extract data with multiple fallback strategies
   const getColumns = () => {
     return fileData?.processed_data?.dataframe_info?.columns ||
