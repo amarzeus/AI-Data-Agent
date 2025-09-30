@@ -927,6 +927,7 @@ async def ai_query(
             db,
             title=request.session_title,
             file_id=file_record.id,
+            user_id=1,
         )
 
     user_message = chat_service.add_message(
@@ -934,6 +935,7 @@ async def ai_query(
         session_record,
         role="user",
         content=request.query,
+        user_id=1,
     )
 
     response_messages: List[ChatMessageResponse] = [ChatMessageResponse.model_validate(user_message)]
@@ -978,6 +980,7 @@ async def ai_query(
                 "visualizations": ai_result.get("visualizations"),
                 "executed_results": executed_results,
             },
+            user_id=1,
         )
         response_messages.append(ChatMessageResponse.model_validate(assistant_message))
 

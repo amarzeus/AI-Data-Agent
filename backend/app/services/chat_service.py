@@ -37,10 +37,12 @@ class ChatService:
         db: Session,
         title: Optional[str] = None,
         file_id: Optional[int] = None,
+        user_id: int = 1,
     ) -> ChatSession:
         """Create a new chat session."""
         now = datetime.utcnow()
         session = ChatSession(
+            user_id=user_id,
             file_id=file_id,
             title=title or "New conversation",
             last_interaction_at=now,
@@ -123,10 +125,12 @@ class ChatService:
         content: str,
         sql_query: Optional[str] = None,
         payload: Optional[Dict[str, Any]] = None,
+        user_id: Optional[int] = None,
     ) -> ChatMessage:
         """Persist a chat message and update session timestamps."""
         message = ChatMessage(
             session_id=session.id,
+            user_id=user_id,
             role=role,
             content=content,
             sql_query=sql_query,

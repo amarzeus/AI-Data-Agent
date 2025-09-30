@@ -428,7 +428,7 @@ class ApiService {
   }
 
   async runAIQuery(request: AIQueryRequest): Promise<AIQueryResponse> {
-    return this.request<AIQueryResponse>('/ai/query', {
+    return this.request<AIQueryResponse>('/chat/send-message', {
       method: 'POST',
       body: JSON.stringify(request),
     });
