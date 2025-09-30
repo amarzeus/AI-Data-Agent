@@ -135,21 +135,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    setMessages([createAssistantIntro(fileName)]);
-    setLatestResults(undefined);
-    setActiveSession(null);
-    setChatMessages([]);
-  }, [selectedFileId, fileName, setLatestResults, setActiveSession, setChatMessages]);
+  // Memoize the messages processing to prevent unnecessary re-renders
+  const processedMessages = useMemo(() => messages, [messages]);
 
   useEffect(() => {
-    const loadExistingSession = async () => {
-      if (!activeSession || !activeSession.id) {
-        return;
-      }
+    // Only reset if we actually changed files
+    const shouldReset = selectedFileId !== null; // Reset when a file is selected
+    if (shouldReset) {
+      setMessages([createAssistantIntro(fileName)]);
+      setLatestResults(undefined);
+      setActiveSession(null);
+      setChatMessages([]);
+    }
+  }, [selectedFileId, fileName, setMessages, setLatestResults, setActiveSession, setChatMessages]);
+
+  useEffect(() => {
+    const loadExistingSession = async (sessionId: number) => {
       try {
         setLoadingSession(true);
-        const sessionMessages = await apiService.listChatMessages(activeSession.id, 200);
+        const sessionMessages = await apiService.listChatMessages(sessionId, 200);
         const mappedMessages = sessionMessages.messages.map((message) =>
           mapApiMessageToChatMessage(message, fileName),
         );
@@ -162,16 +166,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
       }
     };
 
-    if (activeSession) {
-      loadExistingSession();
+    if (activeSession?.id) {
+      loadExistingSession(activeSession.id);
     }
-  }, [activeSession, appendChatMessages, fileName, setMessages]);
+  }, [activeSession?.id, fileName, appendChatMessages]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current && processedMessages.length > 0) {
+      // Use setTimeout to ensure DOM is updated before scrolling
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 0);
     }
-  }, [messages]);
+  }, [processedMessages.length]); // Only depend on length, not the entire messages array
 
   const suggestions = useMemo(
     () => [
@@ -199,21 +208,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
     // Authentication removed, allow queries without signin
 
     const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'user',
       text: query,
       createdAt: new Date(),
     };
 
-    const assistantId = `assistant-${Date.now()}`;
-    const placeholder: ChatMessage = {
-      id: assistantId,
-      role: 'assistant',
-      text: 'Analyzing your data... hold tight.',
-      createdAt: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage, placeholder]);
+    // Add user message immediately
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsSubmitting(true);
 
@@ -225,6 +227,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
         session_title: activeSession?.title || fileName || undefined,
       });
 
+      // Handle session creation/update
       if (response.created_session) {
         setActiveSession(response.created_session);
       } else if (response.session_id && !activeSession) {
@@ -242,44 +245,43 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
         } as ChatSessionSummary);
       }
 
-      const enrichedMessages = response.messages?.map((message) =>
-        mapApiMessageToChatMessage(message, fileName),
-      );
-
-      setMessages((prev) => {
-        const others = prev.filter(
-          (msg) => msg.id !== userMessage.id && msg.id !== assistantId,
+      // Process response messages
+      if (response.messages && response.messages.length > 0) {
+        const enrichedMessages = response.messages.map((message) =>
+          mapApiMessageToChatMessage(message, fileName),
         );
 
-        if (enrichedMessages && enrichedMessages.length > 0) {
-          return [...others, ...enrichedMessages].sort(
+        // Replace the optimistic user message and add assistant response
+        setMessages((prev) => {
+          const filtered = prev.filter(msg => msg.id !== userMessage.id);
+          return [...filtered, ...enrichedMessages].sort(
             (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
           );
-        }
+        });
 
-        const assistantFallback = prev.find((msg) => msg.id === assistantId);
-        const assistantReplacement = assistantFallback
-          ? {
-              ...assistantFallback,
-              text: response.explanation || 'Here is what I found based on your question.',
-              sql: response.sql_query || undefined,
-              visualizations: response.visualizations,
-              disclaimer: response.data_quality_disclaimer || undefined,
-              rowCount: response.executed_results?.row_count,
-            }
-          : undefined;
-
-        return assistantReplacement
-          ? [...others, assistantReplacement].sort(
-              (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
-            )
-          : others;
-      });
-
-      if (response.messages && response.messages.length > 0) {
         appendChatMessages(response.messages);
+      } else {
+        // Fallback: create assistant message from response data
+        const assistantMessage: ChatMessage = {
+          id: `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          role: 'assistant',
+          text: response.explanation || 'Here is what I found based on your question.',
+          createdAt: new Date(),
+          sql: response.sql_query || undefined,
+          visualizations: response.visualizations,
+          disclaimer: response.data_quality_disclaimer || undefined,
+          rowCount: response.executed_results?.row_count,
+        };
+
+        setMessages((prev) => {
+          const filtered = prev.filter(msg => msg.id !== userMessage.id);
+          return [...filtered, assistantMessage].sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+          );
+        });
       }
 
+      // Update other state
       setSharedViz(response.visualizations ?? []);
       setDataQualityDisclaimer(response.data_quality_disclaimer);
       setLatestResults(response.executed_results ?? undefined);
@@ -293,12 +295,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
     } catch (error) {
       const message = error instanceof Error ? error.message : 'AI query failed.';
       toast.error(message);
+
+      // Update the user message to show error
       setMessages((prev) =>
         prev.map((entry) =>
-          entry.id === assistantId
+          entry.id === userMessage.id
             ? {
                 ...entry,
-                text: message,
+                text: `${query} (Error: ${message})`,
               }
             : entry,
         ),
@@ -326,11 +330,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
       await apiService.updateChatMessage(editingMessageId, { content: editingMessageText });
 
       // Update local message state
-      setMessages(prev => prev.map(msg =>
-        msg.sessionMessageId === editingMessageId
-          ? { ...msg, text: editingMessageText, isEditing: false }
-          : msg
-      ));
+      setMessages(prev => prev.map(msg => {
+        if (msg.sessionMessageId === editingMessageId) {
+          return { ...msg, text: editingMessageText, isEditing: false, editedText: undefined };
+        }
+        return msg;
+      }));
 
       setEditingMessageId(null);
       setEditingMessageText('');
@@ -352,10 +357,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
     try {
       await apiService.deleteChatMessage(messageId);
 
-      // Remove from local state
-      setMessages(prev => prev.filter(msg => msg.sessionMessageId !== messageId));
-
-      // Refresh messages from server to ensure consistency
+      // Remove from local state and refresh from server in one operation
       const sessionMessages = await apiService.listChatMessages(activeSession.id, 200);
       const mappedMessages = sessionMessages.messages.map((message) =>
         mapApiMessageToChatMessage(message, fileName),
@@ -726,7 +728,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
               <UploadFileIcon />
             </IconButton>
           </Tooltip>
-          {messages.length > 1 && (
+          {processedMessages.length > 1 && (
             <Tooltip title="Start a fresh session">
               <IconButton
                 color="primary"
@@ -768,7 +770,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
           gap: 2,
         }}
       >
-        {messages.map(renderMessage)}
+        {processedMessages.map(renderMessage)}
       </Box>
 
       <Divider />
@@ -894,7 +896,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
         >
           <MenuItem onClick={() => {
             if (selectedMessageForMenu) {
-              const message = messages.find(m => m.sessionMessageId === selectedMessageForMenu);
+              const message = processedMessages.find(m => m.sessionMessageId === selectedMessageForMenu);
               if (message) {
                 handleEditMessage(selectedMessageForMenu, message.text);
               }
