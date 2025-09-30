@@ -12,6 +12,13 @@ import {
   TextField,
   Tooltip,
   Typography,
+  Menu,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputAdornment,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
@@ -20,6 +27,13 @@ import HistoryIcon from '@mui/icons-material/History';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ForumIcon from '@mui/icons-material/Forum';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import SearchIcon from '@mui/icons-material/Search';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbDownIcon from '@mui/icons-material/ThumbDown';
+import DownloadIcon from '@mui/icons-material/Download';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -29,6 +43,7 @@ import {
   ExecutedResults,
   QueryHistoryEntry,
   VisualizationConfig,
+  MessageSearchResponse,
 } from '../services/apiService';
 import { apiService } from '../services/apiService';
 import { useDataContext } from '../contexts/DataContext';
@@ -105,6 +120,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [loadingSession, setLoadingSession] = useState(false);
+
+  // Enhanced chat features state
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<MessageSearchResponse | null>(null);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedMessageForMenu, setSelectedMessageForMenu] = useState<number | null>(null);
+  const [sessionMenuAnchor, setSessionMenuAnchor] = useState<null | HTMLElement>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'json' | 'txt'>('json');
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -286,8 +313,202 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
     handleRunQuery();
   };
 
+  // Enhanced chat functionality
+  const handleEditMessage = (messageId: number, currentText: string) => {
+    setEditingMessageId(messageId);
+    setEditingMessageText(currentText);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId) return;
+
+    try {
+      await apiService.updateChatMessage(editingMessageId, { content: editingMessageText });
+
+      // Update local message state
+      setMessages(prev => prev.map(msg =>
+        msg.sessionMessageId === editingMessageId
+          ? { ...msg, text: editingMessageText, isEditing: false }
+          : msg
+      ));
+
+      setEditingMessageId(null);
+      setEditingMessageText('');
+      toast.success('Message updated successfully');
+    } catch (error) {
+      toast.error('Failed to update message');
+      console.error('Edit message error:', error);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingMessageText('');
+  };
+
+  const handleDeleteMessage = async (messageId: number) => {
+    if (!activeSession) return;
+
+    try {
+      await apiService.deleteChatMessage(messageId);
+
+      // Remove from local state
+      setMessages(prev => prev.filter(msg => msg.sessionMessageId !== messageId));
+
+      // Refresh messages from server to ensure consistency
+      const sessionMessages = await apiService.listChatMessages(activeSession.id, 200);
+      const mappedMessages = sessionMessages.messages.map((message) =>
+        mapApiMessageToChatMessage(message, fileName),
+      );
+      setMessages(mappedMessages);
+
+      setMessageMenuAnchor(null);
+      setSelectedMessageForMenu(null);
+      toast.success('Message deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete message');
+      console.error('Delete message error:', error);
+    }
+  };
+
+  const handleSearchMessages = async () => {
+    if (!activeSession || !searchQuery.trim()) return;
+
+    try {
+      const results = await apiService.searchSessionMessages(activeSession.id, searchQuery);
+      setSearchResults(results);
+      setShowSearchResults(true);
+    } catch (error) {
+      toast.error('Search failed');
+      console.error('Search error:', error);
+    }
+  };
+
+  const handleExportSession = async () => {
+    if (!activeSession) return;
+
+    try {
+      const exportData = await apiService.exportSession(activeSession.id, exportFormat);
+
+      if (exportFormat === 'txt') {
+        // Download as text file
+        const blob = new Blob([exportData.content || ''], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = exportData.filename || `chat_session_${activeSession.id}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        // Download as JSON file
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chat_session_${activeSession.id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      setExportDialogOpen(false);
+      toast.success('Session exported successfully');
+    } catch (error) {
+      toast.error('Export failed');
+      console.error('Export error:', error);
+    }
+  };
+
+  const handleMessageFeedback = async (messageId: number, feedbackType: 'thumbs_up' | 'thumbs_down' | 'helpful' | 'not_helpful') => {
+    try {
+      await apiService.addMessageFeedback(messageId, { feedback_type: feedbackType });
+      toast.success('Feedback submitted');
+    } catch (error) {
+      toast.error('Failed to submit feedback');
+      console.error('Feedback error:', error);
+    }
+  };
+
+  const handleMessageMenuOpen = (event: React.MouseEvent<HTMLElement>, messageId: number) => {
+    setMessageMenuAnchor(event.currentTarget);
+    setSelectedMessageForMenu(messageId);
+  };
+
+  const handleMessageMenuClose = () => {
+    setMessageMenuAnchor(null);
+    setSelectedMessageForMenu(null);
+  };
+
+  const handleSessionMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setSessionMenuAnchor(event.currentTarget);
+  };
+
+  const handleSessionMenuClose = () => {
+    setSessionMenuAnchor(null);
+  };
+
+  const handleRenameSession = async (newTitle: string) => {
+    if (!activeSession) return;
+
+    try {
+      await apiService.updateChatSession(activeSession.id, { title: newTitle });
+
+      // Update local state
+      setActiveSession(activeSession ? { ...activeSession, title: newTitle } : null);
+
+      setSessionMenuAnchor(null);
+      toast.success('Session renamed successfully');
+    } catch (error) {
+      toast.error('Failed to rename session');
+      console.error('Rename session error:', error);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!activeSession) return;
+
+    try {
+      await apiService.deleteChatSession(activeSession.id);
+
+      // Reset to initial state
+      setActiveSession(null);
+      setChatMessages([]);
+      setMessages([createAssistantIntro(fileName)]);
+
+      setSessionMenuAnchor(null);
+      toast.success('Session deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete session');
+      console.error('Delete session error:', error);
+    }
+  };
+
+  const handleArchiveSession = async () => {
+    if (!activeSession) return;
+
+    try {
+      await apiService.updateChatSession(activeSession.id, { is_archived: true });
+
+      // Reset to initial state
+      setActiveSession(null);
+      setChatMessages([]);
+      setMessages([createAssistantIntro(fileName)]);
+
+      setSessionMenuAnchor(null);
+      toast.success('Session archived successfully');
+    } catch (error) {
+      toast.error('Failed to archive session');
+      console.error('Archive session error:', error);
+    }
+  };
+
   const renderMessage = (message: ChatMessage) => {
     const isUser = message.role === 'user';
+    const isEditing = editingMessageId === message.sessionMessageId;
+
     return (
       <Stack
         key={message.id}
@@ -297,20 +518,60 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
       >
         <Paper
           elevation={0}
-            sx={{
+          sx={{
             p: 2,
             bgcolor: isUser ? 'primary.main' : 'background.paper',
             color: isUser ? 'primary.contrastText' : 'text.primary',
             maxWidth: '100%',
-          borderRadius: 2,
+            borderRadius: 2,
             border: isUser ? 'none' : '1px solid',
             borderColor: isUser ? 'transparent' : 'divider',
             whiteSpace: 'pre-line',
+            position: 'relative',
           }}
         >
-          <Typography variant="body1" sx={{ lineHeight: 1.5 }}>
+          {/* Message actions menu button */}
+          {!isEditing && message.sessionMessageId && (
+            <IconButton
+              size="small"
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                opacity: 0.6,
+                '&:hover': { opacity: 1 }
+              }}
+              onClick={(e) => handleMessageMenuOpen(e, message.sessionMessageId!)}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          )}
+
+          {isEditing ? (
+            <Box sx={{ mt: 1 }}>
+              <TextField
+                fullWidth
+                multiline
+                value={editingMessageText}
+                onChange={(e) => setEditingMessageText(e.target.value)}
+                variant="outlined"
+                size="small"
+                sx={{ mb: 1 }}
+              />
+              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <Button size="small" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+                <Button size="small" variant="contained" onClick={handleSaveEdit}>
+                  Save
+                </Button>
+              </Stack>
+            </Box>
+          ) : (
+            <Typography variant="body1" sx={{ lineHeight: 1.5 }}>
               {message.text}
             </Typography>
+          )}
 
             {message.sql && (
               <Box
@@ -365,6 +626,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
               {message.disclaimer}
             </Alert>
           )}
+
+          {/* Message feedback buttons for assistant messages */}
+          {message.role === 'assistant' && message.sessionMessageId && (
+            <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
+              <Tooltip title="Helpful">
+                <IconButton
+                  size="small"
+                  onClick={() => handleMessageFeedback(message.sessionMessageId!, 'helpful')}
+                  sx={{ color: 'success.main' }}
+                >
+                  <ThumbUpIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Not helpful">
+                <IconButton
+                  size="small"
+                  onClick={() => handleMessageFeedback(message.sessionMessageId!, 'not_helpful')}
+                  sx={{ color: 'error.main' }}
+                >
+                  <ThumbDownIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          )}
         </Paper>
         <Typography variant="caption" color="text.secondary">
           {formatDistanceToNow(message.createdAt, { addSuffix: true })}
@@ -401,12 +686,40 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
         </Stack>
         <Stack direction="row" spacing={1} alignItems="center">
           {activeSession && (
-            <Chip
-              size="small"
-              label={activeSession.title ?? `Session #${activeSession.id}`}
-              color="secondary"
-              variant="outlined"
-            />
+            <>
+              <Chip
+                size="small"
+                label={activeSession.title ?? `Session #${activeSession.id}`}
+                color="secondary"
+                variant="outlined"
+                onClick={handleSessionMenuOpen}
+                sx={{ cursor: 'pointer' }}
+              />
+              <Menu
+                anchorEl={sessionMenuAnchor}
+                open={Boolean(sessionMenuAnchor)}
+                onClose={handleSessionMenuClose}
+              >
+                <MenuItem onClick={() => {
+                  const newTitle = prompt('Enter new session title:');
+                  if (newTitle) handleRenameSession(newTitle);
+                }}>
+                  <EditIcon fontSize="small" sx={{ mr: 1 }} />
+                  Rename
+                </MenuItem>
+                <MenuItem onClick={() => setExportDialogOpen(true)}>
+                  <DownloadIcon fontSize="small" sx={{ mr: 1 }} />
+                  Export
+                </MenuItem>
+                <MenuItem onClick={handleArchiveSession}>
+                  Archive
+                </MenuItem>
+                <MenuItem onClick={handleDeleteSession} sx={{ color: 'error.main' }}>
+                  <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+                  Delete
+                </MenuItem>
+              </Menu>
+            </>
           )}
           <Tooltip title="Upload new dataset">
             <IconButton color="primary" onClick={onOpenUploadModal} size="small">
@@ -459,6 +772,57 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
       </Box>
 
       <Divider />
+
+      {/* Search functionality */}
+      {activeSession && (
+        <>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <TextField
+              size="small"
+              placeholder="Search messages..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearchMessages()}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery && (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={handleSearchMessages}>
+                      <SearchIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ flexGrow: 1 }}
+            />
+          </Stack>
+
+          {/* Search results */}
+          {showSearchResults && searchResults && (
+            <Paper variant="outlined" sx={{ p: 2, maxHeight: 200, overflow: 'auto' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Search Results ({searchResults.total_results})
+              </Typography>
+              <Stack spacing={1}>
+                {searchResults.results.map((result) => (
+                  <Box key={result.id} sx={{ p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                    <Typography variant="body2" fontWeight={600}>
+                      {result.role.toUpperCase()}: {result.content.substring(0, 100)}...
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {result.match_context}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Paper>
+          )}
+        </>
+      )}
 
       <Stack spacing={1}>
         <Stack direction="row" alignItems="center" spacing={1}>
@@ -521,6 +885,66 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
           </Tooltip>
           </Stack>
         </Box>
+
+        {/* Message actions menu */}
+        <Menu
+          anchorEl={messageMenuAnchor}
+          open={Boolean(messageMenuAnchor)}
+          onClose={handleMessageMenuClose}
+        >
+          <MenuItem onClick={() => {
+            if (selectedMessageForMenu) {
+              const message = messages.find(m => m.sessionMessageId === selectedMessageForMenu);
+              if (message) {
+                handleEditMessage(selectedMessageForMenu, message.text);
+              }
+            }
+            handleMessageMenuClose();
+          }}>
+            <EditIcon fontSize="small" sx={{ mr: 1 }} />
+            Edit
+          </MenuItem>
+          <MenuItem onClick={() => {
+            if (selectedMessageForMenu) {
+              handleDeleteMessage(selectedMessageForMenu);
+            }
+          }} sx={{ color: 'error.main' }}>
+            <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+            Delete
+          </MenuItem>
+        </Menu>
+
+        {/* Export dialog */}
+        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)}>
+          <DialogTitle>Export Session</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ minWidth: 300, pt: 1 }}>
+              <Typography variant="body2">
+                Export your chat session in the selected format.
+              </Typography>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant={exportFormat === 'json' ? 'contained' : 'outlined'}
+                  onClick={() => setExportFormat('json')}
+                >
+                  JSON
+                </Button>
+                <Button
+                  variant={exportFormat === 'txt' ? 'contained' : 'outlined'}
+                  onClick={() => setExportFormat('txt')}
+                >
+                  Text
+                </Button>
+              </Stack>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setExportDialogOpen(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleExportSession}>
+              Export
+            </Button>
+          </DialogActions>
+        </Dialog>
 
       {historyExpanded && queryHistory.length > 0 && (
         <Paper variant="outlined" sx={{ p: 2 }}>

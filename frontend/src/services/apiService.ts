@@ -269,6 +269,52 @@ export interface ChatMessageListResponse {
   messages: ChatMessageResponse[];
 }
 
+export interface ChatSessionUpdateRequest {
+  title?: string;
+  is_archived?: boolean;
+}
+
+export interface MessageUpdateRequest {
+  content?: string;
+}
+
+export interface MessageFeedbackRequest {
+  feedback_type: 'thumbs_up' | 'thumbs_down' | 'helpful' | 'not_helpful';
+  feedback_text?: string;
+}
+
+export interface MessageSearchResponse {
+  session_id: number;
+  query: string;
+  results: {
+    id: number;
+    role: string;
+    content: string;
+    sql_query?: string;
+    created_at: string;
+    match_context: string;
+  }[];
+  total_results: number;
+}
+
+export interface SessionExportResponse {
+  content?: string;
+  filename?: string;
+  session?: {
+    id: number;
+    title: string;
+    created_at: string;
+    message_count: number;
+  };
+  messages?: {
+    id: number;
+    role: string;
+    content: string;
+    sql_query?: string;
+    created_at: string;
+  }[];
+}
+
 export interface QueryHistoryEntry {
   query_id: number;
   query: string;
@@ -449,6 +495,48 @@ class ApiService {
   async listChatMessages(sessionId: number, limit = 200, offset = 0): Promise<ChatMessageListResponse> {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     return this.request<ChatMessageListResponse>(`/chat/sessions/${sessionId}/messages?${params.toString()}`);
+  }
+
+  async updateChatSession(sessionId: number, updates: ChatSessionUpdateRequest): Promise<ChatSessionResponse> {
+    return this.request<ChatSessionResponse>(`/chat/sessions/${sessionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteChatSession(sessionId: number): Promise<{ message: string; session_id: number }> {
+    return this.request<{ message: string; session_id: number }>(`/chat/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateChatMessage(messageId: number, updates: MessageUpdateRequest): Promise<ChatMessageResponse> {
+    return this.request<ChatMessageResponse>(`/chat/messages/${messageId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteChatMessage(messageId: number): Promise<{ message: string; message_id: number }> {
+    return this.request<{ message: string; message_id: number }>(`/chat/messages/${messageId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async searchSessionMessages(sessionId: number, query: string, limit = 50): Promise<MessageSearchResponse> {
+    const params = new URLSearchParams({ query, limit: String(limit) });
+    return this.request<MessageSearchResponse>(`/chat/sessions/${sessionId}/search?${params.toString()}`);
+  }
+
+  async exportSession(sessionId: number, format: 'json' | 'txt' = 'json'): Promise<SessionExportResponse> {
+    return this.request<SessionExportResponse>(`/chat/sessions/${sessionId}/export?format=${format}`);
+  }
+
+  async addMessageFeedback(messageId: number, feedback: MessageFeedbackRequest): Promise<{ message: string; message_id: number; feedback_count: number }> {
+    return this.request<{ message: string; message_id: number; feedback_count: number }>(`/chat/messages/${messageId}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify(feedback),
+    });
   }
 
   async getQueryHistory(fileId: number): Promise<QueryHistoryResponse> {

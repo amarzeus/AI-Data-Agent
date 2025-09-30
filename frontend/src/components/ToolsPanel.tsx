@@ -22,7 +22,6 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import TimelapseIcon from '@mui/icons-material/Timelapse';
-import PersonIcon from '@mui/icons-material/Person';
 import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import ForumIcon from '@mui/icons-material/Forum';
 import HistoryIcon from '@mui/icons-material/History';
