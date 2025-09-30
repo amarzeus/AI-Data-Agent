@@ -19,7 +19,6 @@ class UploadedFile(Base):
     file_size = Column(Integer, nullable=False)  # Size in bytes
     file_hash = Column(String(64), nullable=False)  # For duplicate detection
     mime_type = Column(String(100), nullable=False)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     # File processing status
     status = Column(String(50), default="uploaded")  # uploaded, processing, completed, failed
@@ -43,7 +42,6 @@ class UploadedFile(Base):
     sheet_names = Column(JSON, nullable=True)  # List of sheet names as JSON array
     cleaning_metadata = Column(JSON, nullable=True)  # Per-sheet cleaning info
 
-    owner = relationship("User", back_populates="uploaded_files")
     chat_sessions = relationship(
         "ChatSession",
         back_populates="file",
@@ -157,7 +155,6 @@ class QueryHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     file_id = Column(Integer, nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=True, index=True)
 
     # Query details
@@ -179,71 +176,16 @@ class QueryHistory(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     executed_at = Column(DateTime(timezone=True), nullable=True)
 
-    user = relationship("User", back_populates="query_history")
     session = relationship("ChatSession", back_populates="query_history")
 
 
-class User(Base):
-    """Application user accounts"""
-
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), nullable=False, unique=True, index=True)
-    hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(255), nullable=True)
-    is_active = Column(Boolean, default=True)
-    is_superuser = Column(Boolean, default=False)
-    last_login_at = Column(DateTime(timezone=True), nullable=True)
-    settings = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
-    uploaded_files = relationship("UploadedFile", back_populates="owner")
-    chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
-    chat_messages = relationship("ChatMessage", back_populates="author")
-    query_history = relationship("QueryHistory", back_populates="user")
 
 
-class UserProfile(Base):
-    """Extended profile information for users"""
-
-    __tablename__ = "user_profiles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
-    job_title = Column(String(255), nullable=True)
-    department = Column(String(255), nullable=True)
-    avatar_url = Column(String(500), nullable=True)
-    bio = Column(Text, nullable=True)
-    location = Column(String(255), nullable=True)
-    phone_number = Column(String(50), nullable=True)
-    preferences = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    user = relationship("User", back_populates="profile")
 
 
-class RefreshToken(Base):
-    """Refresh tokens for session management"""
 
-    __tablename__ = "refresh_tokens"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    token_hash = Column(String(255), nullable=False, unique=True, index=True)
-    user_agent = Column(String(255), nullable=True)
-    ip_address = Column(String(100), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    revoked = Column(Boolean, default=False)
-    revoked_at = Column(DateTime(timezone=True), nullable=True)
-    token_metadata = Column("metadata", JSON, nullable=True)
 
-    user = relationship("User", back_populates="refresh_tokens")
 
 
 class ChatSession(Base):
@@ -252,7 +194,6 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     file_id = Column(Integer, ForeignKey("uploaded_files.id"), nullable=True, index=True)
     title = Column(String(255), nullable=False, default="New conversation")
     summary = Column(Text, nullable=True)
@@ -261,7 +202,6 @@ class ChatSession(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     last_interaction_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    user = relationship("User", back_populates="chat_sessions")
     file = relationship("UploadedFile", back_populates="chat_sessions")
     messages = relationship(
         "ChatMessage",
@@ -279,7 +219,6 @@ class ChatMessage(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     role = Column(String(20), nullable=False)  # user, assistant, system
     content = Column(Text, nullable=False)
     sql_query = Column(Text, nullable=True)
@@ -287,4 +226,3 @@ class ChatMessage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     session = relationship("ChatSession", back_populates="messages")
-    author = relationship("User", back_populates="chat_messages")

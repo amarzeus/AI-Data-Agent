@@ -33,11 +33,9 @@ from app.models.base import (
     QueryHistory,
     ChatSession,
     ChatMessage,
-    User,
 )
 from app.models.schemas import AIQueryRequest, ChatMessageResponse, ChatSessionSummary
 from app.routers.ai import router as ai_router
-from app.routers.auth import router as auth_router, get_current_user
 from app.routers.chat import router as chat_router
 from app.services import chat_service
 from app.services.excel_processor import excel_processor
@@ -72,9 +70,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Keep existing routers for backwards compatibility
+# Include routers
 app.include_router(ai_router)
-app.include_router(auth_router)
 app.include_router(chat_router)
 
 # --------------------------------------------------------------------------- #
@@ -344,7 +341,6 @@ async def health_check() -> Dict[str, Any]:
 @app.post("/upload/avatar", response_model=Dict[str, Any])
 async def upload_avatar(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
@@ -379,7 +375,7 @@ async def upload_avatar(
     if not file_extension:
         file_extension = ".jpg"  # Default extension
 
-    unique_filename = f"{current_user.id}_{timestamp}{file_extension}"
+    unique_filename = f"anon_{timestamp}{file_extension}"
     file_path = os.path.join(avatars_dir, unique_filename)
 
     # Save file
@@ -388,18 +384,6 @@ async def upload_avatar(
 
     # Generate avatar URL (relative to static files)
     avatar_url = f"/avatars/{unique_filename}"
-
-    # Update user profile
-    if not current_user.profile:
-        from app.models.base import UserProfile
-        profile = UserProfile(user_id=current_user.id, avatar_url=avatar_url)
-        db.add(profile)
-    else:
-        current_user.profile.avatar_url = avatar_url
-        db.add(current_user.profile)
-
-    db.commit()
-    db.refresh(current_user)
 
     return {
         "message": "Avatar uploaded successfully.",
@@ -909,7 +893,6 @@ async def get_query_history(file_id: int, db: Session = Depends(get_db)) -> Dict
 async def ai_query(
     request: AIQueryRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Execute an AI-powered natural language query against a file's primary sheet.
@@ -936,13 +919,12 @@ async def ai_query(
     session_record: Optional[ChatSession] = None
     if request.session_id:
         try:
-            session_record = chat_service.get_session(db, current_user.id, request.session_id)
+            session_record = chat_service.get_session(db, request.session_id)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
     else:
         session_record = chat_service.create_session(
             db,
-            user_id=current_user.id,
             title=request.session_title,
             file_id=file_record.id,
         )
@@ -952,7 +934,6 @@ async def ai_query(
         session_record,
         role="user",
         content=request.query,
-        user_id=current_user.id,
     )
 
     response_messages: List[ChatMessageResponse] = [ChatMessageResponse.model_validate(user_message)]
@@ -981,7 +962,6 @@ async def ai_query(
             rows_returned=row_count,
             status=ai_result.get("status", "completed"),
             executed_at=end_time,
-            user_id=current_user.id,
             session_id=session_record.id,
         )
         db.add(history_entry)

@@ -5,7 +5,6 @@ import type {
   FileDetail,
   QueryHistoryEntry,
   VisualizationConfig,
-  UserResponse,
 } from '../services/apiService';
 
 interface DataContextType {
@@ -28,10 +27,7 @@ interface DataContextType {
   chatMessages: ChatMessageResponse[];
   setChatMessages: (messages: ChatMessageResponse[]) => void;
   appendChatMessages: (messages: ChatMessageResponse[]) => void;
-  currentUser?: UserResponse | null;
-  setCurrentUser: (user: UserResponse | null) => void;
-  authLoading: boolean;
-  setAuthLoading: (value: boolean) => void;
+
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -50,8 +46,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [queryHistory, setQueryHistory] = useState<QueryHistoryEntry[]>([]);
   const [activeSession, setActiveSession] = useState<ChatSessionSummary | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessageResponse[]>([]);
-  const [currentUser, setCurrentUser] = useState<UserResponse | null>(null);
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
 
   const appendChatMessages = (messages: ChatMessageResponse[]) => {
     if (messages.length === 0) {
@@ -92,10 +86,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       chatMessages,
       setChatMessages,
       appendChatMessages,
-      currentUser,
-      setCurrentUser,
-      authLoading,
-      setAuthLoading,
     }),
     [
       activeFileId,
@@ -107,8 +97,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       queryHistory,
       activeSession,
       chatMessages,
-      currentUser,
-      authLoading,
     ],
   );
 
