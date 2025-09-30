@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -19,6 +19,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  Menu,
+  MenuItem,
+  CircularProgress,
 } from '@mui/material';
 import {
   BarChart,
@@ -49,6 +52,8 @@ import {
   FullscreenExit,
   Download,
 } from '@mui/icons-material';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface VizConfig {
   type: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'radar' | 'funnel' | 'table';
@@ -67,11 +72,15 @@ interface QueryResultsVizProps {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-const QueryResultsViz: React.FC<QueryResultsVizProps> = ({
+const QueryResultsViz = ({
   vizConfigs,
   disclaimer,
-}) => {
+}: QueryResultsVizProps) => {
   const [fullscreenChart, setFullscreenChart] = useState<VizConfig | null>(null);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [currentExportConfig, setCurrentExportConfig] = useState<VizConfig | null>(null);
+  const exportTargetRef = useRef<HTMLDivElement | null>(null);
 
   const handleFullscreen = (config: VizConfig) => {
     setFullscreenChart(config);
@@ -81,9 +90,84 @@ const QueryResultsViz: React.FC<QueryResultsVizProps> = ({
     setFullscreenChart(null);
   };
 
-  const handleExportChart = (config: VizConfig) => {
-    // Export functionality would be implemented here
-    console.log('Export chart:', config.title);
+  const handleExportClick = (event: React.MouseEvent<HTMLButtonElement>, config: VizConfig) => {
+    setExportAnchorEl(event.currentTarget);
+    setCurrentExportConfig(config);
+  };
+
+  const setExportTargetRef = (config: VizConfig | null) => {
+    if (config) {
+      exportTargetRef.current = document.getElementById(`chart-container-${config.title}`) as HTMLDivElement;
+    } else {
+      exportTargetRef.current = null;
+    }
+  };
+
+  const handleExportClose = () => {
+    setExportAnchorEl(null);
+    setCurrentExportConfig(null);
+  };
+
+  const exportAsImage = async (type: 'png' | 'jpeg') => {
+    if (!exportTargetRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(exportTargetRef.current, { background: '#fff' });
+      const imgData = canvas.toDataURL(`image/${type}`);
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = `${currentExportConfig?.title || 'chart'}.${type}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error exporting image:', error);
+      alert('Failed to export image.');
+    }
+    setExporting(false);
+    handleExportClose();
+  };
+
+  const exportAsPDF = async () => {
+    if (!exportTargetRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(exportTargetRef.current, { background: '#fff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      });
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`${currentExportConfig?.title || 'chart'}.pdf`);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Failed to export PDF.');
+    }
+    setExporting(false);
+    handleExportClose();
+  };
+
+  const handleExportOptionClick = (option: 'png' | 'jpeg' | 'pdf', config: VizConfig) => {
+    if (config.data && config.data.length > 1000) {
+      const confirmed = window.confirm(
+        `The chart has ${config.data.length} data points, which may take time to export. Continue?`
+      );
+      if (!confirmed) return;
+    }
+    setExportTargetRef(config);
+    switch (option) {
+      case 'png':
+        exportAsImage('png');
+        break;
+      case 'jpeg':
+        exportAsImage('jpeg');
+        break;
+      case 'pdf':
+        exportAsPDF();
+        break;
+    }
   };
 
   const renderChart = (config: VizConfig) => {
@@ -256,45 +340,62 @@ const QueryResultsViz: React.FC<QueryResultsVizProps> = ({
       {vizConfigs.map((config, index) => (
         <Card key={index} sx={{ mb: 2 }}>
           <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                {config.title}
-              </Typography>
-              <Stack direction="row" spacing={1}>
-                <Tooltip title="Toggle fullscreen">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleFullscreen(config)}
-                  >
-                    <Fullscreen />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Export chart">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleExportChart(config)}
-                  >
-                    <Download />
-                  </IconButton>
-                </Tooltip>
+            <Box
+              id={`chart-container-${config.title}`}
+              sx={{ position: 'relative' }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  {config.title}
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <Tooltip title="Toggle fullscreen">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleFullscreen(config)}
+                    >
+                      <Fullscreen />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Export chart">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => handleExportClick(e, config)}
+                      disabled={exporting}
+                    >
+                      {exporting ? <CircularProgress size={20} /> : <Download />}
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              </Box>
+
+              {renderChart(config)}
+
+              {config.disclaimer && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  {config.disclaimer}
+                </Typography>
+              )}
+
+              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                <Chip size="small" label={config.type} color="primary" variant="outlined" />
+                <Chip size="small" label={`${config.data?.length || 0} data points`} variant="outlined" />
               </Stack>
             </Box>
-
-            {renderChart(config)}
-
-            {config.disclaimer && (
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                {config.disclaimer}
-              </Typography>
-            )}
-
-            <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
-              <Chip size="small" label={config.type} color="primary" variant="outlined" />
-              <Chip size="small" label={`${config.data?.length || 0} data points`} variant="outlined" />
-            </Stack>
           </CardContent>
         </Card>
       ))}
+
+      {/* Export Menu */}
+      <Menu
+        anchorEl={exportAnchorEl}
+        open={Boolean(exportAnchorEl)}
+        onClose={handleExportClose}
+      >
+        <MenuItem onClick={() => currentExportConfig && handleExportOptionClick('png', currentExportConfig)}>Export as PNG</MenuItem>
+        <MenuItem onClick={() => currentExportConfig && handleExportOptionClick('jpeg', currentExportConfig)}>Export as JPG</MenuItem>
+        <MenuItem onClick={() => currentExportConfig && handleExportOptionClick('pdf', currentExportConfig)}>Export as PDF</MenuItem>
+      </Menu>
 
       {/* Fullscreen Dialog */}
       <Dialog
@@ -313,8 +414,11 @@ const QueryResultsViz: React.FC<QueryResultsVizProps> = ({
                 <Typography variant="h6">{fullscreenChart.title}</Typography>
                 <Stack direction="row" spacing={1}>
                   <Tooltip title="Export chart">
-                    <IconButton onClick={() => handleExportChart(fullscreenChart)}>
-                      <Download />
+                    <IconButton
+                      onClick={(e) => handleExportClick(e, fullscreenChart)}
+                      disabled={exporting}
+                    >
+                      {exporting ? <CircularProgress size={20} /> : <Download />}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Close fullscreen">
@@ -326,7 +430,10 @@ const QueryResultsViz: React.FC<QueryResultsVizProps> = ({
               </Box>
             </DialogTitle>
             <DialogContent sx={{ p: 0 }}>
-              <Box sx={{ height: '100%', p: 2 }}>
+              <Box
+                id={`chart-container-${fullscreenChart.title}`}
+                sx={{ height: '100%', p: 2 }}
+              >
                 {renderChart(fullscreenChart)}
               </Box>
             </DialogContent>

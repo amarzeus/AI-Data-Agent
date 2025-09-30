@@ -15,7 +15,7 @@ alembic==1.12.1
 # AI and ML
 google-generativeai==0.8.3
 python-dotenv==1.0.0
-python-dateutil==2.9.0.post0
+python-dateutil==2.8.2
 
 # Data validation and cleaning
 pydantic==2.8.2
