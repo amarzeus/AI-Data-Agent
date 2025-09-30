@@ -37,6 +37,7 @@ from app.models.base import (
 from app.models.schemas import AIQueryRequest, ChatMessageResponse, ChatSessionSummary
 from app.routers.ai import router as ai_router
 from app.routers.chat import router as chat_router
+from app.routers.websocket import router as websocket_router
 from app.services import chat_service
 from app.services.excel_processor import excel_processor
 from app.services.gemini_service import get_gemini_service
@@ -73,6 +74,7 @@ app.add_middleware(
 # Include routers
 app.include_router(ai_router)
 app.include_router(chat_router)
+app.include_router(websocket_router)
 
 # --------------------------------------------------------------------------- #
 # Utility helpers

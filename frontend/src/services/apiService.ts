@@ -1,557 +1,196 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
+import axios, { AxiosResponse } from 'axios'
+import {
+  FileMetadata,
+  FileUploadResponse,
+  ChatSession,
+  ChatMessage,
+  SendMessageRequest,
+  SendMessageResponse,
+  CreateChatSessionRequest,
+  ChatSessionResponse,
+  AIQueryRequest,
+  AIQueryResponse,
+  SQLExecutionRequest,
+  SQLExecutionResponse
+} from '../types'
 
-export interface UploadResponse {
-  message: string;
-  file_id: number;
-  filename: string;
-  unique_filename: string;
-  size: number;
-  file_hash: string;
-  validation: {
-    is_valid: boolean;
-    row_count: number;
-    column_count: number;
-    columns: string[];
-    file_size: number;
-  };
-  processing_time_seconds: number;
-  status: string;
-  sheet_names: string[];
-  sheet_summaries: SheetSummary[];
-  processed_data?: ProcessedDataPreview;
-  dynamic_table_name?: string;
-  cleaning_metadata?: Record<string, CleaningMetadata>;
-  error?: string;
-}
-
-export interface FileInfo {
-  id: number;
-  filename: string;
-  original_filename: string;
-  file_path: string;
-  file_size: number;
-  file_hash: string;
-  mime_type: string;
-  status: string;
-  total_rows: number;
-  total_columns: number;
-  total_sheets?: number;
-  sheet_names?: string[];
-  created_at: string | null;
-  processed_at: string | null;
-  processing_time_seconds: number | null;
-  error_message?: string | null;
-}
-
-export interface ProcessedDataPreview {
-  dataframe_info: any;
-  numeric_stats: any;
-  column_analysis: any;
-  preview_columns?: string[];
-  preview_rows?: any[];
-  schema?: Record<string, string>;
-}
-
-export interface CleaningMetadata {
-  original_row_count: number;
-  original_column_count?: number;
-  cleaned_row_count: number;
-  cleaned_column_count?: number;
-  rows_removed: number;
-  quality_score: number;
-  issues?: string[];
-  issue_summary?: Record<string, number>;
-  cleaning_steps?: string[];
-  metrics?: Record<string, number>;
-  columns_renamed?: Record<string, string>;
-  dataframe_info?: any;
-  numeric_stats?: any;
-  column_analysis?: any;
-}
-
-export interface SheetSummary {
-  sheet_id: number;
-  sheet_name: string;
-  table_name: string;
-  row_count: number;
-  column_count: number;
-  cleaning_metadata: CleaningMetadata;
-  dataframe_info: any;
-  numeric_stats: any;
-  column_analysis: any;
-}
-
-export interface SheetListResponse {
-  file_id: number;
-  sheets: SheetMetadata[];
-}
-
-export interface SheetMetadata {
-  sheet_id: number;
-  sheet_name: string;
-  table_name: string;
-  row_count: number;
-  column_count: number;
-  has_headers: boolean;
-  data_quality_score: number | null;
-  status: string;
-  processed_at: string | null;
-}
-
-export interface ColumnMetadata {
-  column_id: number;
-  sheet_id: number;
-  file_id: number;
-  column_name: string;
-  original_column_name?: string | null;
-  column_index: number;
-  detected_data_type: string;
-  confidence_score?: number | null;
-  is_nullable: boolean;
-  unique_values_count: number;
-  null_values_count: number;
-  max_length?: number | null;
-  avg_length?: number | null;
-  min_value?: number | null;
-  max_value?: number | null;
-  avg_value?: number | null;
-  std_deviation?: number | null;
-  earliest_date?: string | null;
-  latest_date?: string | null;
-  has_inconsistent_types: boolean;
-  has_outliers: boolean;
-  needs_cleaning: boolean;
-  cleaning_applied?: string[] | null;
-}
-
-export interface DataQualityIssue {
-  issue_id: number;
-  issue_type: string;
-  severity: string;
-  description: string;
-  resolved: boolean;
-  detected_at: string | null;
-}
-
-export interface SheetDetailResponse {
-  sheet: SheetMetadata;
-  columns: ColumnMetadata[];
-  quality_issues: DataQualityIssue[];
-}
-
-export interface FileDetail extends FileInfo {
-  cleaning_metadata?: Record<string, CleaningMetadata>;
-  dynamic_table_name?: string | null;
-  sheets?: (SheetDetailResponse['sheet'] & { columns: ColumnMetadata[]; cleaning_metadata?: CleaningMetadata })[];
-  processed_data?: ProcessedDataPreview;
-}
-
-
-
-const normalizeHeaders = (headers?: HeadersInit): Record<string, string> => {
-  if (!headers) {
-    return {};
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 30000, // 30 seconds
+  headers: {
+    'Content-Type': 'application/json'
   }
+})
 
-  if (headers instanceof Headers) {
-    const result: Record<string, string> = {};
-    headers.forEach((value, key) => {
-      result[key] = value;
-    });
-    return result;
-  }
-
-  if (Array.isArray(headers)) {
-    return headers.reduce<Record<string, string>>((acc, [key, value]) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-  }
-
-  return headers;
-};
-
-export interface FilesResponse {
-  files: FileInfo[];
-  total: number;
-  skip: number;
-  limit: number;
-}
-
-export interface PreviewResponse {
-  file_id: number;
-  sheet_id: number;
-  sheet_name: string;
-  preview_rows: number;
-  columns: string[];
-  data: any[];
-}
-
-export interface AIQueryRequest {
-  query: string;
-  file_id: number;
-  context?: string;
-  session_id?: number;
-  session_title?: string;
-}
-
-export interface ExecutedResults {
-  data: any[];
-  columns: { name: string; type: string }[];
-  row_count: number;
-}
-
-export interface VisualizationConfig {
-  type: 'bar' | 'line' | 'pie' | 'scatter' | 'table' | string;
-  xAxis?: string;
-  yAxis?: string;
-  data: any[];
-  title: string;
-  disclaimer?: string;
-  columns?: any[];
-}
-
-export interface AIQueryResponse {
-  status: string;
-  query: string;
-  sql_query?: string;
-  executed_results?: ExecutedResults;
-  visualizations?: VisualizationConfig[];
-  explanation?: string;
-  data_quality_disclaimer?: string;
-  error?: string;
-  query_id?: number;
-  session_id?: number;
-  created_session?: ChatSessionSummary;
-  session_title?: string;
-  messages?: ChatMessageResponse[];
-}
-
-export interface ChatSessionSummary {
-  id: number;
-  title: string;
-  summary?: string | null;
-  file_id?: number | null;
-  is_archived: boolean;
-  created_at: string;
-  updated_at: string;
-  last_interaction_at?: string | null;
-  message_count: number;
-  assistant_preview?: string | null;
-}
-
-export interface ChatMessageResponse {
-  id: number;
-  session_id: number;
-  user_id?: number | null;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  sql_query?: string | null;
-  payload?: Record<string, any> | null;
-  created_at: string;
-}
-
-export interface ChatSessionListResponse {
-  sessions: ChatSessionSummary[];
-}
-
-export interface ChatSessionResponse {
-  session: ChatSessionSummary;
-}
-
-export interface ChatSessionCreateRequest {
-  title?: string;
-  file_id?: number;
-}
-
-export interface ChatMessageListResponse {
-  session_id: number;
-  messages: ChatMessageResponse[];
-}
-
-export interface ChatSessionUpdateRequest {
-  title?: string;
-  is_archived?: boolean;
-}
-
-export interface MessageUpdateRequest {
-  content?: string;
-}
-
-export interface MessageFeedbackRequest {
-  feedback_type: 'thumbs_up' | 'thumbs_down' | 'helpful' | 'not_helpful';
-  feedback_text?: string;
-}
-
-export interface MessageSearchResponse {
-  session_id: number;
-  query: string;
-  results: {
-    id: number;
-    role: string;
-    content: string;
-    sql_query?: string;
-    created_at: string;
-    match_context: string;
-  }[];
-  total_results: number;
-}
-
-export interface SessionExportResponse {
-  content?: string;
-  filename?: string;
-  session?: {
-    id: number;
-    title: string;
-    created_at: string;
-    message_count: number;
-  };
-  messages?: {
-    id: number;
-    role: string;
-    content: string;
-    sql_query?: string;
-    created_at: string;
-  }[];
-}
-
-export interface QueryHistoryEntry {
-  query_id: number;
-  query: string;
-  sql_query?: string;
-  response?: string;
-  visualization_type?: string | null;
-  visualization_config?: VisualizationConfig[] | null;
-  rows_returned?: number | null;
-  execution_time_ms?: number | null;
-  status: string;
-  created_at: string | null;
-}
-
-export interface QueryHistoryResponse {
-  file_id: number;
-  history: QueryHistoryEntry[];
-}
-
-class ApiService {
-  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-
-    const { headers: extraHeaders, ...restOptions } = options || {};
-
-    const mergedHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...normalizeHeaders(extraHeaders),
-    };
-
-    const config: RequestInit = {
-      headers: mergedHeaders,
-      ...restOptions,
-    };
-
-    const response = await fetch(url, config);
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Network error' }));
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+// Request interceptor for adding auth token if needed
+api.interceptors.request.use(
+  (config) => {
+    // Add auth token if available
+    const token = localStorage.getItem('auth-token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
     }
-
-    return response.json();
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
   }
+)
 
-  async uploadFile(file: File, onProgress?: (event: ProgressEvent<EventTarget>) => void): Promise<UploadResponse> {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${API_BASE_URL}/upload`);
-
-      xhr.upload.onprogress = (event) => {
-        if (onProgress) {
-          onProgress(event);
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            resolve(JSON.parse(xhr.responseText));
-          } catch (parseError) {
-            reject(new Error('Failed to parse upload response'));
-          }
-        } else {
-          try {
-            const errorData = JSON.parse(xhr.responseText);
-            reject(new Error(errorData.detail || 'Upload failed'));
-          } catch (error) {
-            reject(new Error('Upload failed'));
-          }
-        }
-      };
-
-      xhr.onerror = () => {
-        reject(new Error('Network error during upload'));
-      };
-
-      xhr.send(formData);
-    });
-  }
-
-  async getFiles(skip: number = 0, limit: number = 100): Promise<FilesResponse> {
-    return this.request<FilesResponse>(`/files?skip=${skip}&limit=${limit}`);
-  }
-
-  async getFile(fileId: number): Promise<FileDetail> {
-    return this.request<FileDetail>(`/files/${fileId}`);
-  }
-
-  async getFileMetadata(fileId: number): Promise<{
-    file_id: number;
-    sheet_names: string[];
-    cleaning_metadata: Record<string, CleaningMetadata>;
-    total_sheets: number;
-    total_rows: number;
-  }> {
-    return this.request(`/files/${fileId}/metadata`);
-  }
-
-  async getFileSheets(fileId: number): Promise<SheetListResponse> {
-    return this.request<SheetListResponse>(`/files/${fileId}/sheets`);
-  }
-
-  async getSheetDetail(fileId: number, sheetId: number): Promise<SheetDetailResponse> {
-    return this.request<SheetDetailResponse>(`/files/${fileId}/sheets/${sheetId}`);
-  }
-
-  async getFilePreview(
-    fileId: number,
-    options: { rows?: number; sheetId?: number; sheetName?: string } = {},
-  ): Promise<PreviewResponse> {
-    const params = new URLSearchParams();
-    params.append('rows', String(options.rows ?? 10));
-    if (options.sheetId !== undefined) {
-      params.append('sheet_id', String(options.sheetId));
+// Response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Handle unauthorized access
+      localStorage.removeItem('auth-token')
+      window.location.href = '/login'
     }
-    if (options.sheetName !== undefined) {
-      params.append('sheet_name', options.sheetName);
-    }
+    return Promise.reject(error)
+  }
+)
 
-    return this.request<PreviewResponse>(`/files/${fileId}/preview?${params.toString()}`);
+export class ApiService {
+  // File Management
+  async uploadFile(file: File): Promise<FileMetadata> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response: AxiosResponse<FileUploadResponse> = await api.post('/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+
+    return this.getFileById(response.data.id)
   }
 
-  async deleteFile(fileId: number): Promise<{ message: string; file_id: number; filename: string }> {
-    return this.request<{ message: string; file_id: number; filename: string }>(`/files/${fileId}`, {
-      method: 'DELETE',
-    });
+  async getFiles(): Promise<FileMetadata[]> {
+    const response: AxiosResponse<FileMetadata[]> = await api.get('/files')
+    return response.data
   }
 
+  async getFileById(id: number): Promise<FileMetadata> {
+    const response: AxiosResponse<FileMetadata> = await api.get(`/files/${id}`)
+    return response.data
+  }
+
+  async deleteFile(id: number): Promise<void> {
+    await api.delete(`/files/${id}`)
+  }
+
+  // Chat Management
+  async createChatSession(request: CreateChatSessionRequest): Promise<ChatSession> {
+    const response: AxiosResponse<{ session: ChatSession }> = await api.post('/chat/sessions', request)
+    return response.data.session
+  }
+
+  async getChatSessions(): Promise<ChatSession[]> {
+    const response: AxiosResponse<ChatSessionResponse> = await api.get('/chat/sessions')
+    return response.data.sessions
+  }
+
+  async getChatSession(id: number): Promise<ChatSession> {
+    const response: AxiosResponse<{ session: ChatSession }> = await api.get(`/chat/sessions/${id}`)
+    return response.data.session
+  }
+
+  async updateChatSession(id: number, updates: Partial<ChatSession>): Promise<ChatSession> {
+    const response: AxiosResponse<{ session: ChatSession }> = await api.put(`/chat/sessions/${id}`, updates)
+    return response.data.session
+  }
+
+  async deleteChatSession(id: number): Promise<void> {
+    await api.delete(`/chat/sessions/${id}`)
+  }
+
+  async getSessionMessages(sessionId: number, limit = 200, offset = 0): Promise<ChatMessage[]> {
+    const response: AxiosResponse<{ messages: ChatMessage[] }> = await api.get(
+      `/chat/sessions/${sessionId}/messages`,
+      {
+        params: { limit, offset }
+      }
+    )
+    return response.data.messages
+  }
+
+  async sendMessage(request: SendMessageRequest): Promise<SendMessageResponse> {
+    const response: AxiosResponse<SendMessageResponse> = await api.post('/chat/send-message', request)
+    return response.data
+  }
+
+  async updateMessage(messageId: number, content: string): Promise<ChatMessage> {
+    const response: AxiosResponse<ChatMessage> = await api.put(`/chat/messages/${messageId}`, { content })
+    return response.data
+  }
+
+  async deleteMessage(messageId: number): Promise<void> {
+    await api.delete(`/chat/messages/${messageId}`)
+  }
+
+  async searchSessionMessages(sessionId: number, query: string, limit = 50): Promise<any> {
+    const response = await api.get(`/chat/sessions/${sessionId}/search`, {
+      params: { query, limit }
+    })
+    return response.data
+  }
+
+  async exportSession(sessionId: number, format: 'json' | 'txt' = 'json'): Promise<any> {
+    const response = await api.get(`/chat/sessions/${sessionId}/export`, {
+      params: { format }
+    })
+    return response.data
+  }
+
+  async addMessageFeedback(messageId: number, feedbackType: string, feedbackText?: string): Promise<any> {
+    const response = await api.post(`/chat/messages/${messageId}/feedback`, {
+      feedback_type: feedbackType,
+      feedback_text: feedbackText
+    })
+    return response.data
+  }
+
+  // AI Query Endpoints
   async generateSQL(request: AIQueryRequest): Promise<AIQueryResponse> {
-    return this.request<AIQueryResponse>('/ai/generate-sql', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
+    const response: AxiosResponse<AIQueryResponse> = await api.post('/ai/generate-sql', request)
+    return response.data
   }
 
-  async executeSQL(fileId: number, sqlQuery: string): Promise<{
-    status: string;
-    data: any[];
-    columns: { name: string; type: string }[];
-    row_count: number;
-  }> {
-    return this.request<{
-      status: string;
-      data: any[];
-      columns: { name: string; type: string }[];
-      row_count: number;
-    }>('/ai/execute-sql', {
-      method: 'POST',
-      body: JSON.stringify({
-        file_id: fileId,
-        sql_query: sqlQuery,
-      }),
-    });
+  async executeSQL(request: SQLExecutionRequest): Promise<SQLExecutionResponse> {
+    const response: AxiosResponse<SQLExecutionResponse> = await api.post('/ai/execute-sql', request)
+    return response.data
   }
 
-  async runAIQuery(request: AIQueryRequest): Promise<AIQueryResponse> {
-    return this.request<AIQueryResponse>('/chat/send-message', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
+  async aiQuery(request: AIQueryRequest): Promise<AIQueryResponse> {
+    const response: AxiosResponse<AIQueryResponse> = await api.post('/ai/query', request)
+    return response.data
   }
 
-  async listChatSessions(includeArchived = false): Promise<ChatSessionListResponse> {
-    const query = includeArchived ? '?include_archived=true' : '';
-    return this.request<ChatSessionListResponse>(`/chat/sessions${query}`);
-  }
-
-  async createChatSession(payload: ChatSessionCreateRequest): Promise<ChatSessionResponse> {
-    return this.request<ChatSessionResponse>('/chat/sessions', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async listChatMessages(sessionId: number, limit = 200, offset = 0): Promise<ChatMessageListResponse> {
-    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-    return this.request<ChatMessageListResponse>(`/chat/sessions/${sessionId}/messages?${params.toString()}`);
-  }
-
-  async updateChatSession(sessionId: number, updates: ChatSessionUpdateRequest): Promise<ChatSessionResponse> {
-    return this.request<ChatSessionResponse>(`/chat/sessions/${sessionId}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
-  }
-
-  async deleteChatSession(sessionId: number): Promise<{ message: string; session_id: number }> {
-    return this.request<{ message: string; session_id: number }>(`/chat/sessions/${sessionId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async updateChatMessage(messageId: number, updates: MessageUpdateRequest): Promise<ChatMessageResponse> {
-    return this.request<ChatMessageResponse>(`/chat/messages/${messageId}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
-  }
-
-  async deleteChatMessage(messageId: number): Promise<{ message: string; message_id: number }> {
-    return this.request<{ message: string; message_id: number }>(`/chat/messages/${messageId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async searchSessionMessages(sessionId: number, query: string, limit = 50): Promise<MessageSearchResponse> {
-    const params = new URLSearchParams({ query, limit: String(limit) });
-    return this.request<MessageSearchResponse>(`/chat/sessions/${sessionId}/search?${params.toString()}`);
-  }
-
-  async exportSession(sessionId: number, format: 'json' | 'txt' = 'json'): Promise<SessionExportResponse> {
-    return this.request<SessionExportResponse>(`/chat/sessions/${sessionId}/export?format=${format}`);
-  }
-
-  async addMessageFeedback(messageId: number, feedback: MessageFeedbackRequest): Promise<{ message: string; message_id: number; feedback_count: number }> {
-    return this.request<{ message: string; message_id: number; feedback_count: number }>(`/chat/messages/${messageId}/feedback`, {
-      method: 'POST',
-      body: JSON.stringify(feedback),
-    });
-  }
-
-  async getQueryHistory(fileId: number): Promise<QueryHistoryResponse> {
-    return this.request<QueryHistoryResponse>(`/files/${fileId}/query-history`);
-  }
-
-  async exportFile(fileId: number, format: 'csv' | 'json' | 'excel'): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/files/${fileId}/export?format=${format}`);
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.status}`);
+  // Utility methods
+  async healthCheck(): Promise<boolean> {
+    try {
+      await api.get('/health')
+      return true
+    } catch {
+      return false
     }
-    return response.blob();
   }
 
+  setAuthToken(token: string) {
+    localStorage.setItem('auth-token', token)
+  }
 
+  removeAuthToken() {
+    localStorage.removeItem('auth-token')
+  }
+
+  getAuthToken(): string | null {
+    return localStorage.getItem('auth-token')
+  }
 }
 
-export const apiService = new ApiService();
+// Export singleton instance
+export const apiService = new ApiService()
+
+export default apiService
