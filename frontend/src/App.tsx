@@ -9,8 +9,6 @@ import {
 } from '@tanstack/react-query';
 import Dashboard from './components/Dashboard';
 import FileUploadModal from './components/FileUploadModal';
-import { AuthGate } from './components/AuthGate';
-import AuthPanel from './components/AuthPanel';
 import { DataProvider, useDataContext } from './contexts/DataContext';
 import { apiService } from './services/apiService';
 import './App.css';
@@ -203,49 +201,47 @@ const AppContent: React.FC = () => {
   });
 
   return (
-    <AuthGate fallback={<AuthPanel />}>
-      <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            p: 1,
-            borderBottom: 1,
-            borderColor: 'divider',
-            bgcolor: 'background.paper',
-          }}
-        >
-          <img src="/logo192.png" alt="AI Data Agent" style={{ height: 40 }} />
-        </Box>
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 1,
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+        }}
+      >
+        <img src="/logo192.png" alt="AI Data Agent" style={{ height: 40 }} />
+      </Box>
 
-        <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-          <Dashboard
-            selectedFileId={activeFileId}
-            fileName={displayFileName}
-            onOpenUploadModal={handleOpenUploadModal}
-            onFileSelect={handleFileSelect}
-          />
-        </Box>
-
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#363636',
-              color: '#fff',
-            },
-          }}
-        />
-
-        <FileUploadModal
-          open={uploadModalOpen}
-          onClose={handleCloseUploadModal}
-          onUploadSuccess={handleFileUploadSuccess}
+      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+        <Dashboard
+          selectedFileId={activeFileId}
+          fileName={displayFileName}
+          onOpenUploadModal={handleOpenUploadModal}
+          onFileSelect={handleFileSelect}
         />
       </Box>
-    </AuthGate>
+
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+        }}
+      />
+
+      <FileUploadModal
+        open={uploadModalOpen}
+        onClose={handleCloseUploadModal}
+        onUploadSuccess={handleFileUploadSuccess}
+      />
+    </Box>
   );
 };
 

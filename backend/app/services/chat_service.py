@@ -13,10 +13,9 @@ class ChatService:
     def list_sessions(
         self,
         db: Session,
-        user_id: int,
         include_archived: bool = False,
     ) -> List[Tuple[ChatSession, int, Optional[str]]]:
-        """Return chat sessions for a user sorted by last interaction."""
+        """Return chat sessions sorted by last interaction."""
         query = (
             db.query(
                 ChatSession,
@@ -24,7 +23,6 @@ class ChatService:
                 func.max(ChatMessage.content).filter(ChatMessage.role == "assistant").label("assistant_preview"),
             )
             .outerjoin(ChatMessage, ChatMessage.session_id == ChatSession.id)
-            .filter(ChatSession.user_id == user_id)
             .group_by(ChatSession.id)
         )
 
@@ -37,14 +35,12 @@ class ChatService:
     def create_session(
         self,
         db: Session,
-        user_id: int,
         title: Optional[str] = None,
         file_id: Optional[int] = None,
     ) -> ChatSession:
-        """Create a new chat session for the user."""
+        """Create a new chat session."""
         now = datetime.utcnow()
         session = ChatSession(
-            user_id=user_id,
             file_id=file_id,
             title=title or "New conversation",
             last_interaction_at=now,
@@ -54,11 +50,11 @@ class ChatService:
         db.refresh(session)
         return session
 
-    def get_session(self, db: Session, user_id: int, session_id: int) -> ChatSession:
-        """Return a chat session ensuring it belongs to the user."""
+    def get_session(self, db: Session, session_id: int) -> ChatSession:
+        """Return a chat session."""
         session = (
             db.query(ChatSession)
-            .filter(ChatSession.id == session_id, ChatSession.user_id == user_id)
+            .filter(ChatSession.id == session_id)
             .first()
         )
         if not session:
@@ -125,14 +121,12 @@ class ChatService:
         *,
         role: str,
         content: str,
-        user_id: Optional[int] = None,
         sql_query: Optional[str] = None,
         payload: Optional[Dict[str, Any]] = None,
     ) -> ChatMessage:
         """Persist a chat message and update session timestamps."""
         message = ChatMessage(
             session_id=session.id,
-            user_id=user_id,
             role=role,
             content=content,
             sql_query=sql_query,

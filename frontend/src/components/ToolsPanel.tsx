@@ -49,7 +49,6 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
     sharedViz,
     latestResults,
     dataQualityDisclaimer,
-    currentUser,
     activeSession,
     setActiveSession,
     setChatMessages,
@@ -95,12 +94,8 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
   }, []);
 
   useEffect(() => {
-    if (currentUser) {
-      loadSessions();
-    } else {
-      setSessions([]);
-    }
-  }, [currentUser, loadSessions]);
+    loadSessions();
+  }, [loadSessions]);
 
   const handleSessionSelect = async (session: ChatSessionSummary) => {
     setActiveSession(session);
@@ -143,34 +138,16 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
         >
           Upload New Dataset
         </Button>
-        {currentUser && (
-          <Button
-            variant="outlined"
-            startIcon={<ForumIcon />}
-            onClick={loadSessions}
-            fullWidth
-            disabled={sessionsLoading}
-          >
-            Refresh Sessions
-          </Button>
-        )}
+        <Button
+          variant="outlined"
+          startIcon={<ForumIcon />}
+          onClick={loadSessions}
+          fullWidth
+          disabled={sessionsLoading}
+        >
+          Refresh Sessions
+        </Button>
       </Stack>
-
-      {currentUser && (
-        <Card variant="outlined">
-          <CardContent>
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <PersonIcon color="primary" />
-              <Box>
-                <Typography variant="subtitle1">Signed in as</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {currentUser.full_name ?? currentUser.email}
-                </Typography>
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
 
       {!selectedFileId && renderNoFile()}
 
@@ -207,59 +184,57 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
             </CardActions>
           </Card>
 
-          {currentUser && (
-            <Card variant="outlined">
-              <CardContent>
-                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-                  <ForumIcon color="primary" />
-                  <Typography variant="subtitle1">Saved Sessions</Typography>
-                </Stack>
-                {sessionsError && (
-                  <Alert severity="error" sx={{ mb: 1 }}>
-                    {sessionsError}
-                  </Alert>
-                )}
-                {sessions.length === 0 ? (
-                  <Alert severity="info">Run a query to start your first session.</Alert>
-                ) : (
-                  <List dense>
-                    {sessions.slice(0, 5).map((session) => (
-                      <ListItem
-                        key={session.id}
-                        button
-                        selected={activeSession?.id === session.id}
-                        onClick={() => handleSessionSelect(session)}
-                      >
-                        <ListItemText
-                          primary={session.title ?? `Session ${session.id}`}
-                          secondary={
-                            session.last_interaction_at
-                              ? `Updated ${formatDistanceToNow(new Date(session.last_interaction_at), {
-                                  addSuffix: true,
-                                })}`
-                              : 'No activity yet'
-                          }
-                        />
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
-              </CardContent>
-              <CardActions>
-                <Button
-                  size="small"
-                  startIcon={<HistoryIcon />}
-                  onClick={() => sessions[0] && handleSessionSelect(sessions[0])}
-                  disabled={sessions.length === 0}
-                >
-                  Open latest session
-                </Button>
-                <Button size="small" onClick={() => setIsCollapsed(false)}>
-                  View all
-                </Button>
-              </CardActions>
-            </Card>
-          )}
+          <Card variant="outlined">
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                <ForumIcon color="primary" />
+                <Typography variant="subtitle1">Saved Sessions</Typography>
+              </Stack>
+              {sessionsError && (
+                <Alert severity="error" sx={{ mb: 1 }}>
+                  {sessionsError}
+                </Alert>
+              )}
+              {sessions.length === 0 ? (
+                <Alert severity="info">Run a query to start your first session.</Alert>
+              ) : (
+                <List dense>
+                  {sessions.slice(0, 5).map((session) => (
+                    <ListItem
+                      key={session.id}
+                      button
+                      selected={activeSession?.id === session.id}
+                      onClick={() => handleSessionSelect(session)}
+                    >
+                      <ListItemText
+                        primary={session.title ?? `Session ${session.id}`}
+                        secondary={
+                          session.last_interaction_at
+                            ? `Updated ${formatDistanceToNow(new Date(session.last_interaction_at), {
+                                addSuffix: true,
+                              })}`
+                            : 'No activity yet'
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </CardContent>
+            <CardActions>
+              <Button
+                size="small"
+                startIcon={<HistoryIcon />}
+                onClick={() => sessions[0] && handleSessionSelect(sessions[0])}
+                disabled={sessions.length === 0}
+              >
+                Open latest session
+              </Button>
+              <Button size="small" onClick={() => setIsCollapsed(false)}>
+                View all
+              </Button>
+            </CardActions>
+          </Card>
 
           <Card variant="outlined">
             <CardContent>

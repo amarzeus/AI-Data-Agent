@@ -146,54 +146,7 @@ export interface FileDetail extends FileInfo {
   processed_data?: ProcessedDataPreview;
 }
 
-export interface UserCreateRequest {
-  email: string;
-  password: string;
-  full_name?: string;
-}
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface TokenPair {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-}
-
-export interface UserResponse {
-  id: number;
-  email: string;
-  full_name?: string;
-  is_active: boolean;
-  is_superuser: boolean;
-  last_login_at?: string | null;
-  created_at: string;
-  updated_at: string;
-  profile?: ProfileResponse;
-}
-
-export interface UserProfileUpdateRequest {
-  job_title?: string;
-  department?: string;
-  avatar_url?: string;
-  bio?: string;
-  location?: string;
-  phone_number?: string;
-  preferences?: Record<string, any>;
-}
-
-export interface ProfileResponse extends UserProfileUpdateRequest {
-  created_at: string;
-  updated_at: string;
-}
-
-const defaultHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem('access_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
 
 const normalizeHeaders = (headers?: HeadersInit): Record<string, string> => {
   if (!headers) {
@@ -342,7 +295,6 @@ class ApiService {
 
     const mergedHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...defaultHeaders(),
       ...normalizeHeaders(extraHeaders),
     };
 
@@ -354,29 +306,6 @@ class ApiService {
     const response = await fetch(url, config);
 
     if (!response.ok) {
-      if (response.status === 401) {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          try {
-            const refreshed = await fetch(`${API_BASE_URL}/auth/refresh`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ refresh_token: refreshToken }),
-            });
-
-            if (refreshed.ok) {
-              const tokens = await refreshed.json();
-              localStorage.setItem('access_token', tokens.access_token);
-              localStorage.setItem('refresh_token', tokens.refresh_token);
-              return this.request<T>(endpoint, options);
-            }
-          } catch (refreshError) {
-            console.error('Token refresh failed', refreshError);
-          }
-        }
-      }
       const errorData = await response.json().catch(() => ({ detail: 'Network error' }));
       throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
@@ -534,74 +463,7 @@ class ApiService {
     return response.blob();
   }
 
-  async registerUser(payload: UserCreateRequest): Promise<UserResponse> {
-    return this.request<UserResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
 
-  async login(payload: LoginRequest): Promise<TokenPair> {
-    return this.request<TokenPair>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async refreshTokens(refreshToken: string): Promise<TokenPair> {
-    return this.request<TokenPair>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-  }
-
-  async getCurrentUser(): Promise<UserResponse> {
-    return this.request<UserResponse>('/auth/me');
-  }
-
-  async updateProfile(payload: UserProfileUpdateRequest): Promise<UserResponse> {
-    return this.request<UserResponse>('/auth/me', {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async updatePassword(payload: { current_password: string; new_password: string }): Promise<void> {
-    return this.request<void>('/auth/password/update', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async getProfileDetails(): Promise<ProfileResponse> {
-    return this.request<ProfileResponse>('/auth/me/profile');
-  }
-
-  async uploadAvatar(file: File): Promise<{ avatar_url: string; filename: string; size: number }> {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    return this.request<{ avatar_url: string; filename: string; size: number }>('/upload/avatar', {
-      method: 'POST',
-      body: formData,
-      headers: {}, // Let the browser set the Content-Type for FormData
-    });
-  }
-
-  async exportUserData(format: 'json' | 'csv' | 'pdf'): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/auth/export-data?format=${format}`, {
-      method: 'GET',
-      headers: {
-        ...defaultHeaders(),
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.status}`);
-    }
-
-    return response.blob();
-  }
 }
 
 export const apiService = new ApiService();

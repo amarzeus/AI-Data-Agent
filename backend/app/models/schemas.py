@@ -218,82 +218,6 @@ class CleanedDataMetadata(BaseModel):
     cleaned_at: datetime
 
 
-class UserBase(BaseModel):
-    email: EmailStr
-    full_name: Optional[str] = None
-    is_active: Optional[bool] = True
-    is_superuser: Optional[bool] = False
-
-
-class UserCreate(UserBase):
-    password: str = Field(..., min_length=8, max_length=128)
-
-
-class UserUpdate(BaseModel):
-    full_name: Optional[str] = None
-    password: Optional[str] = Field(default=None, min_length=8, max_length=128)
-    is_active: Optional[bool] = None
-    is_superuser: Optional[bool] = None
-
-
-class UserResponse(UserBase):
-    id: int
-    last_login_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class ProfileResponse(BaseModel):
-    job_title: Optional[str] = None
-    department: Optional[str] = None
-    avatar_url: Optional[str] = None
-    bio: Optional[str] = None
-    location: Optional[str] = None
-    phone_number: Optional[str] = None
-    preferences: Optional[Dict[str, Any]] = None
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class UserProfileUpdate(BaseModel):
-    job_title: Optional[str] = None
-    department: Optional[str] = None
-    avatar_url: Optional[str] = None
-    bio: Optional[str] = None
-    location: Optional[str] = None
-    phone_number: Optional[str] = None
-    preferences: Optional[Dict[str, Any]] = None
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(..., min_length=8, max_length=128)
-
-
-class TokenPair(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-
-class TokenRefreshRequest(BaseModel):
-    refresh_token: str
-
-
-class PasswordResetRequest(BaseModel):
-    email: EmailStr
-
-
-class PasswordUpdateRequest(BaseModel):
-    current_password: str
-    new_password: str = Field(..., min_length=8, max_length=128)
-
 # AI Query Models
 class AIQueryRequest(BaseModel):
     """Request schema for AI-powered queries"""
@@ -342,7 +266,6 @@ class ChatMessageCreate(BaseModel):
 class ChatMessageResponse(BaseModel):
     id: int
     session_id: int
-    user_id: Optional[int]
     role: str
     content: str
     sql_query: Optional[str]
@@ -377,7 +300,6 @@ class ChatSessionListResponse(BaseModel):
 class ChatMessageListResponse(BaseModel):
     session_id: int
     messages: List[ChatMessageResponse]
-    session_id: Optional[int] = None
 
 # Health Check Schema
 class HealthCheckResponse(BaseModel):

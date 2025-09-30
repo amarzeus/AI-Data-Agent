@@ -94,7 +94,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
     setDataQualityDisclaimer,
     latestResults,
     setLatestResults,
-    currentUser,
     activeSession,
     setActiveSession,
     appendChatMessages,
@@ -170,10 +169,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
       return;
     }
 
-    if (!currentUser) {
-      toast.error('Please sign in to run queries.');
-      return;
-    }
+    // Authentication removed, allow queries without signin
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -497,7 +493,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
           multiline
           minRows={2}
           maxRows={6}
-          disabled={!selectedFileId || isSubmitting || !currentUser}
+          disabled={!selectedFileId || isSubmitting}
         />
 
         <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -517,7 +513,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ selectedFileId, fileName,
                 type="submit"
                 variant="contained"
                 endIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
-                disabled={!selectedFileId || isSubmitting || !inputValue.trim() || !currentUser}
+                disabled={!selectedFileId || isSubmitting || !inputValue.trim()}
               >
                 Ask AI
             </Button>
