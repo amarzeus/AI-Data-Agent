@@ -34,6 +34,11 @@ const AuthPanel: React.FC = () => {
       return;
     }
 
+    if (mode === 'register' && !fullName?.trim()) {
+      toast.error('Please provide your full name for registration.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -46,8 +51,25 @@ const AuthPanel: React.FC = () => {
         toast.success('Welcome back!');
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Authentication failed.';
+      let message = 'Authentication failed.';
+
+      if (error instanceof Error) {
+        // Try to extract more specific error details
+        if (error.message.includes('Email already registered')) {
+          message = 'This email is already registered. Please try signing in instead.';
+        } else if (error.message.includes('Invalid credentials')) {
+          message = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (error.message.includes('Network error')) {
+          message = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('HTTP error')) {
+          message = 'Server error. Please try again later.';
+        } else {
+          message = error.message;
+        }
+      }
+
       toast.error(message);
+      console.error('Authentication error:', error);
     } finally {
       setSubmitting(false);
     }

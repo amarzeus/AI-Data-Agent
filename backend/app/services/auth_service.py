@@ -1,5 +1,6 @@
 """Authentication service for user management, JWT issuance, and profile updates."""
 
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -16,6 +17,8 @@ from ..models.schemas import (
     UserCreate,
     UserUpdate,
 )
+
+logger = logging.getLogger(__name__)
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -36,7 +39,8 @@ class AuthService:
     # ------------------------------------------------------------------
     @staticmethod
     def hash_password(password: str) -> str:
-        return pwd_context.hash(password)
+        # Truncate password to 72 bytes for bcrypt compatibility
+        return pwd_context.hash(password[:72])
 
     @staticmethod
     def verify_password(password: str, hashed_password: str) -> bool:
@@ -71,38 +75,62 @@ class AuthService:
     # User operations
     # ------------------------------------------------------------------
     def create_user(self, db: Session, payload: UserCreate) -> User:
+        logger.info(f"Attempting to create user with email: {payload.email.lower()}")
+
         existing = db.query(User).filter(User.email == payload.email.lower()).first()
         if existing:
+            logger.warning(f"User registration failed: Email {payload.email.lower()} already registered")
             raise ValueError("Email already registered")
 
-        hashed_password = self.hash_password(payload.password)
-        user = User(
-            email=payload.email.lower(),
-            hashed_password=hashed_password,
-            full_name=payload.full_name,
-            is_active=payload.is_active,
-            is_superuser=payload.is_superuser,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+        try:
+            hashed_password = self.hash_password(payload.password)
+            user = User(
+                email=payload.email.lower(),
+                hashed_password=hashed_password,
+                full_name=payload.full_name,
+                is_active=payload.is_active,
+                is_superuser=payload.is_superuser,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
 
-        profile = UserProfile(user_id=user.id)
-        db.add(profile)
-        db.commit()
+            profile = UserProfile(user_id=user.id)
+            db.add(profile)
+            db.commit()
 
-        return user
+            logger.info(f"User created successfully: ID {user.id}, Email {user.email}")
+            return user
+        except Exception as e:
+            logger.error(f"User creation failed for email {payload.email.lower()}: {str(e)}")
+            db.rollback()
+            raise
 
     def authenticate_user(self, db: Session, email: str, password: str) -> Optional[User]:
+        logger.info(f"Attempting to authenticate user with email: {email.lower()}")
+
         user = db.query(User).filter(User.email == email.lower()).first()
-        if not user or not user.is_active:
-            return None
-        if not self.verify_password(password, user.hashed_password):
+        if not user:
+            logger.warning(f"Authentication failed: User with email {email.lower()} not found")
             return None
 
-        user.last_login_at = datetime.utcnow()
-        db.commit()
-        return user
+        if not user.is_active:
+            logger.warning(f"Authentication failed: User {email.lower()} is inactive")
+            return None
+
+        if not self.verify_password(password, user.hashed_password):
+            logger.warning(f"Authentication failed: Invalid password for user {email.lower()}")
+            return None
+
+        try:
+            user.last_login_at = datetime.utcnow()
+            db.commit()
+            logger.info(f"User authenticated successfully: ID {user.id}, Email {user.email}")
+            return user
+        except Exception as e:
+            logger.error(f"Failed to update last_login_at for user {email.lower()}: {str(e)}")
+            db.rollback()
+            return None
 
     def update_user(self, db: Session, user: User, payload: UserUpdate) -> User:
         if payload.full_name is not None:
@@ -123,7 +151,8 @@ class AuthService:
     # Token persistence
     # ------------------------------------------------------------------
     def store_refresh_token(self, db: Session, user: User, token: str, user_agent: str = "", ip_address: str = "") -> RefreshToken:
-        token_hash = self.hash_password(token)
+        # Truncate token to 72 bytes for bcrypt compatibility
+        token_hash = self.hash_password(token[:72])
         expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
 
         refresh = RefreshToken(
@@ -158,7 +187,7 @@ class AuthService:
         ).all()
 
         for token_record in candidate_tokens:
-            if pwd_context.verify(refresh_token, token_record.token_hash):
+            if pwd_context.verify(refresh_token[:72], token_record.token_hash):
                 return token_record
         return None
 

@@ -22,10 +22,13 @@ export const useAuth = () => {
 
   const loadCurrentUser = useCallback(async () => {
     try {
+      console.log('useAuth: Loading current user data');
       setAuthLoading(true);
       const fetchedUser = await apiService.getCurrentUser();
+      console.log('useAuth: User data fetched successfully:', fetchedUser.email);
       setCurrentUser(fetchedUser);
     } catch (err) {
+      console.error('useAuth: Failed to load user data:', err);
       setCurrentUser(null);
     } finally {
       setAuthLoading(false);
@@ -48,13 +51,19 @@ export const useAuth = () => {
   }, [authLoading, currentUser, loadCurrentUser, setAuthLoading, setCurrentUser]);
 
   const register = useCallback(async (payload: UserCreateRequest) => {
+    console.log('useAuth: Registering user with email:', payload.email);
     await apiService.registerUser(payload);
+    console.log('useAuth: User registration successful');
   }, []);
 
   const login = useCallback(async (payload: LoginRequest) => {
+    console.log('useAuth: Logging in user with email:', payload.email);
     const tokens = await apiService.login(payload);
+    console.log('useAuth: Login successful, storing tokens');
     storeTokens(tokens);
+    console.log('useAuth: Tokens stored, loading user data');
     await loadCurrentUser();
+    console.log('useAuth: User data loaded successfully');
   }, [loadCurrentUser]);
 
   const refreshTokens = useCallback(async () => {
