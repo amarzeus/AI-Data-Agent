@@ -166,3 +166,141 @@ def update_password(
     db.add(user)
     db.commit()
 
+
+@router.get("/export-data")
+def export_user_data(
+    format: str = Query("json", regex="^(json|csv|pdf)$"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Export user data including profile, preferences, and activity history.
+
+    Supported formats: json, csv, pdf
+    """
+    from datetime import datetime
+    import json
+
+    # Get user's complete profile information
+    user_data = {
+        "export_timestamp": datetime.utcnow().isoformat(),
+        "user_id": current_user.id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "created_at": current_user.created_at.isoformat(),
+        "last_login": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
+        "profile": None,
+        "preferences": {},
+        "query_history": [],
+        "sessions": []
+    }
+
+    # Get profile information
+    if current_user.profile:
+        user_data["profile"] = {
+            "job_title": current_user.profile.job_title,
+            "department": current_user.profile.department,
+            "bio": current_user.profile.bio,
+            "location": current_user.profile.location,
+            "phone_number": current_user.profile.phone_number,
+            "avatar_url": current_user.profile.avatar_url,
+            "preferences": current_user.profile.preferences,
+            "created_at": current_user.profile.created_at.isoformat(),
+            "updated_at": current_user.profile.updated_at.isoformat()
+        }
+        user_data["preferences"] = current_user.profile.preferences or {}
+
+    # Get query history
+    from ..models import QueryHistory
+    queries = db.query(QueryHistory).filter(QueryHistory.user_id == current_user.id).limit(1000).all()
+    user_data["query_history"] = [
+        {
+            "query_id": query.id,
+            "natural_language_query": query.natural_language_query,
+            "sql_query": query.sql_query,
+            "response_text": query.response_text,
+            "execution_time_ms": query.execution_time_ms,
+            "rows_returned": query.rows_returned,
+            "status": query.status,
+            "created_at": query.created_at.isoformat() if query.created_at else None
+        }
+        for query in queries
+    ]
+
+    # Get chat sessions
+    from ..models import ChatSession
+    sessions = db.query(ChatSession).filter(ChatSession.user_id == current_user.id).all()
+    user_data["sessions"] = [
+        {
+            "session_id": session.id,
+            "title": session.title,
+            "file_id": session.file_id,
+            "created_at": session.created_at.isoformat(),
+            "updated_at": session.updated_at.isoformat(),
+            "message_count": session.message_count
+        }
+        for session in sessions
+    ]
+
+    if format == "json":
+        return JSONResponse(
+            content=user_data,
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=user-data-{datetime.utcnow().strftime('%Y%m%d')}.json"}
+        )
+
+    elif format == "csv":
+        # Convert to CSV format
+        import csv
+        import io
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Write user info
+        writer.writerow(["User Information"])
+        writer.writerow(["Field", "Value"])
+        writer.writerow(["User ID", user_data["user_id"]])
+        writer.writerow(["Email", user_data["email"]])
+        writer.writerow(["Full Name", user_data["full_name"]])
+        writer.writerow(["Created At", user_data["created_at"]])
+        writer.writerow(["Last Login", user_data["last_login"]])
+        writer.writerow([])
+
+        # Write profile info
+        if user_data["profile"]:
+            writer.writerow(["Profile Information"])
+            writer.writerow(["Field", "Value"])
+            for key, value in user_data["profile"].items():
+                if key not in ["preferences"]:  # Skip complex nested data
+                    writer.writerow([key, value])
+            writer.writerow([])
+
+        # Write query history
+        writer.writerow(["Query History"])
+        writer.writerow(["Query ID", "Query", "SQL Query", "Status", "Created At", "Execution Time (ms)", "Rows Returned"])
+        for query in user_data["query_history"]:
+            writer.writerow([
+                query["query_id"],
+                query["natural_language_query"][:100] + "..." if len(query["natural_language_query"]) > 100 else query["natural_language_query"],
+                query["sql_query"][:100] + "..." if query["sql_query"] and len(query["sql_query"]) > 100 else (query["sql_query"] or ""),
+                query["status"],
+                query["created_at"],
+                query["execution_time_ms"],
+                query["rows_returned"]
+            ])
+
+        csv_content = output.getvalue()
+        return JSONResponse(
+            content={"data": csv_content},
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=user-data-{datetime.utcnow().strftime('%Y%m%d')}.csv"}
+        )
+
+    else:  # PDF format - simplified text response for now
+        return JSONResponse(
+            content={"message": "PDF export not yet implemented", "data": user_data},
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=user-data-{datetime.utcnow().strftime('%Y%m%d')}.json"}
+        )
+

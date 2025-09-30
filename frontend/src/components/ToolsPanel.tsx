@@ -52,7 +52,6 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
     currentUser,
     activeSession,
     setActiveSession,
-    chatMessages,
     setChatMessages,
   } = useDataContext();
 

@@ -172,6 +172,7 @@ export interface UserResponse {
   last_login_at?: string | null;
   created_at: string;
   updated_at: string;
+  profile?: ProfileResponse;
 }
 
 export interface UserProfileUpdateRequest {
@@ -565,8 +566,41 @@ class ApiService {
     });
   }
 
+  async updatePassword(payload: { current_password: string; new_password: string }): Promise<void> {
+    return this.request<void>('/auth/password/update', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async getProfileDetails(): Promise<ProfileResponse> {
     return this.request<ProfileResponse>('/auth/me/profile');
+  }
+
+  async uploadAvatar(file: File): Promise<{ avatar_url: string; filename: string; size: number }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return this.request<{ avatar_url: string; filename: string; size: number }>('/upload/avatar', {
+      method: 'POST',
+      body: formData,
+      headers: {}, // Let the browser set the Content-Type for FormData
+    });
+  }
+
+  async exportUserData(format: 'json' | 'csv' | 'pdf'): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/auth/export-data?format=${format}`, {
+      method: 'GET',
+      headers: {
+        ...defaultHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.status}`);
+    }
+
+    return response.blob();
   }
 }
 

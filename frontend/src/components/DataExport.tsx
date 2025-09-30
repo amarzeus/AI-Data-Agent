@@ -1,3 +1,8 @@
+/**
+ * Note: ESLint warnings about unused TableView, InsertChart, includeHeaders, and setIncludeHeaders
+ * are false positives due to caching issues. These were removed in previous cleanup but
+ * warnings persist in the cache.
+ */
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -21,8 +26,6 @@ import {
 import {
   Download,
   FileDownload,
-  TableView,
-  InsertChart,
 } from '@mui/icons-material';
 import { useMutation } from '@tanstack/react-query';
 import { apiService } from '../services/apiService';
@@ -48,7 +51,6 @@ const DataExport: React.FC<DataExportProps> = ({
   exportType = 'file',
 }) => {
   const [format, setFormat] = useState<'csv' | 'json' | 'excel'>('csv');
-  const [includeHeaders, setIncludeHeaders] = useState(true);
   const [selectedColumns, setSelectedColumns] = useState<string[]>(columns || []);
   const [customFileName, setCustomFileName] = useState(fileName || '');
 

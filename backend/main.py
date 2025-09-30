@@ -341,6 +341,89 @@ async def health_check() -> Dict[str, Any]:
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
+@app.post("/upload/avatar", response_model=Dict[str, Any])
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Upload and store a user avatar image.
+
+    - Validates the file is an image.
+    - Stores the image in the avatars directory.
+    - Updates the user's profile with the avatar URL.
+    """
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=400,
+            detail="File must be an image.",
+        )
+
+    # Validate file size (max 5MB)
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="File size must be less than 5MB.",
+        )
+
+    # Create avatars directory if it doesn't exist
+    avatars_dir = "avatars"
+    os.makedirs(avatars_dir, exist_ok=True)
+
+    # Generate unique filename
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    file_extension = os.path.splitext(file.filename)[1]
+    if not file_extension:
+        file_extension = ".jpg"  # Default extension
+
+    unique_filename = f"{current_user.id}_{timestamp}{file_extension}"
+    file_path = os.path.join(avatars_dir, unique_filename)
+
+    # Save file
+    with open(file_path, "wb") as output_file:
+        output_file.write(content)
+
+    # Generate avatar URL (relative to static files)
+    avatar_url = f"/avatars/{unique_filename}"
+
+    # Update user profile
+    if not current_user.profile:
+        from app.models.base import UserProfile
+        profile = UserProfile(user_id=current_user.id, avatar_url=avatar_url)
+        db.add(profile)
+    else:
+        current_user.profile.avatar_url = avatar_url
+        db.add(current_user.profile)
+
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "message": "Avatar uploaded successfully.",
+        "avatar_url": avatar_url,
+        "filename": unique_filename,
+        "size": len(content),
+    }
+
+
+@app.get("/avatars/{filename}")
+async def get_avatar(filename: str):
+    """
+    Serve uploaded avatar images.
+    """
+    avatars_dir = "avatars"
+    file_path = os.path.join(avatars_dir, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    from fastapi.responses import FileResponse
+    return FileResponse(file_path)
+
+
 @app.post("/upload", response_model=Dict[str, Any])
 async def upload_file(
     file: UploadFile = File(...),
